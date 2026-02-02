@@ -1,0 +1,86 @@
+import streamlit as st
+import pandas as pd
+import math
+
+# Configuración San Andrés Golf Club - Bochas Blancas
+SLOPE = 128
+RATING = 70.6
+PAR_CANCHA = 72
+
+# Datos de la cancha: Hoyo, Par y Handicap (Dificultad)
+DATOS_HOYOS = [
+    {"hoyo": 1, "par": 4, "hcp": 3}, {"hoyo": 2, "par": 4, "hcp": 7},
+    {"hoyo": 3, "par": 4, "hcp": 11}, {"hoyo": 4, "par": 3, "hcp": 17},
+    {"hoyo": 5, "par": 4, "hcp": 9}, {"hoyo": 6, "par": 5, "hcp": 15},
+    {"hoyo": 7, "par": 3, "hcp": 13}, {"hoyo": 8, "par": 5, "hcp": 1},
+    {"hoyo": 9, "par": 4, "hcp": 5}, {"hoyo": 10, "par": 5, "hcp": 12},
+    {"hoyo": 11, "par": 3, "hcp": 18}, {"hoyo": 12, "par": 5, "hcp": 2},
+    {"hoyo": 13, "par": 4, "hcp": 8}, {"hoyo": 14, "par": 4, "hcp": 16},
+    {"hoyo": 15, "par": 4, "hcp": 4}, {"hoyo": 16, "par": 3, "hcp": 14},
+    {"hoyo": 17, "par": 4, "hcp": 6}, {"hoyo": 18, "par": 4, "hcp": 10}
+]
+
+def calcular_hcp_juego(index):
+    if index == 0: return 0
+    return round((index * (SLOPE / 113)) + (RATING - PAR_CANCHA))
+
+st.set_page_config(page_title="Laguneada San Andrés", layout="wide")
+st.title("⛳ Laguneada: 2 Mejores Pelotas")
+st.subheader("San Andrés Golf Club - Bochas Blancas")
+
+# 1. Configuración de Equipo
+col_cfg1, col_cfg2 = st.columns(2)
+with col_cfg1:
+    num_jugadores = st.radio("Tamaño del equipo:", [3, 4], index=1, horizontal=True)
+with col_cfg2:
+    if num_jugadores == 4:
+        st.info("Regla: 85% del Handicap Neto")
+    else:
+        st.info("Regla: 100% del Handicap Neto (Sin bono)")
+
+# 2. Carga de Jugadores e Index
+jugadores = []
+cols_jug = st.columns(num_jugadores)
+
+for i in range(num_jugadores):
+    with cols_jug[i]:
+        nombre = st.text_input(f"Nombre J{i+1}", value=f"Jugador {i+1}")
+        idx = st.number_input(f"Index J{i+1}", min_value=0.0, max_value=54.0, step=0.1, key=f"idx_{i}")
+        
+        hcp_juego = calcular_hcp_juego(idx)
+        # Aplicar regla de porcentaje
+        hcp_final = math.floor(hcp_juego * 0.85) if num_jugadores == 4 else hcp_juego
+        
+        jugadores.append({"nombre": nombre, "hcp_neto": hcp_final})
+        st.metric("HCP Neto", f"{hcp_final}")
+
+st.divider()
+
+# 3. Tarjeta de Score
+st.subheader("Carga de Scores por Hoyo")
+tabla_final = []
+
+for h in DATOS_HOYOS:
+    with st.expander(f"Hoyo {h['hoyo']} (Par {h['par']} - HCP {h['hcp']})"):
+        cols_score = st.columns(num_jugadores)
+        scores_netos_hoyo = []
+        
+        for i in range(num_jugadores):
+            gross = cols_score[i].number_input(f"Golpes {jugadores[i]['nombre']}", min_value=1, max_value=15, value=h['par'], key=f"h_{h['hoyo']}_j_{i}")
+            
+            # Lógica de golpes de ventaja por hoyo
+            ventaja = 1 if jugadores[i]['hcp_neto'] >= h['hcp'] else 0
+            if jugadores[i]['hcp_neto'] >= (h['hcp'] + 18): ventaja = 2 # Doble golpe si el HCP > 18
+            
+            neto = gross - ventaja
+            scores_netos_hoyo.append(neto)
+            cols_score[i].caption(f"Neto: {neto}")
+
+        # Calcular las 2 mejores
+        mejores = sorted(scores_netos_hoyo)[:2]
+        total_hoyo = sum(mejores)
+        st.write(f"**Mejores pelotas: {mejores[0]} y {mejores[1]} | Total Hoyo: {total_hoyo}**")
+        tabla_final.append(total_hoyo)
+
+st.divider()
+st.header(f"Score Total Neto: {sum(tabla_final)}")
